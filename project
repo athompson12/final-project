@@ -1,0 +1,54 @@
+#22/10/18
+#rename files?
+
+import os
+
+path = 'C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram'
+files = os.listdir(path)
+i = 1
+
+for file in files:
+    filename, file_extension = os.path.splitext(file)
+    os.rename(os.path.join(path, file), os.path.join(path, filename + str(i) + file_extension))
+    i = i+1
+
+
+#cropped images - all diff sizes?
+
+cropped = np.empty(len(onlyfiles), dtype=object)
+
+for n in range(0, len(onlyfiles)):
+	  cropped[n] = images[n][50:730, 350:1520]
+
+print('img1 type:',type(cropped[16]),'and shape:', np.shape(cropped[16]))
+#cv2.imshow('image[43]', cropped[43])
+
+
+#gray vs colour sub
+
+images = np.empty(len(onlyfiles), dtype=object)
+gray = np.empty(len(onlyfiles), dtype=object)
+
+for n in range(0, len(onlyfiles)):
+  images[n] = cv2.imread( join(mypath,onlyfiles[n]) )
+	  gray[n] = cv2.cvtColor(resizeImages[n], cv2.COLOR_BGR2GRAY)
+
+subsag = np.empty(len(onlyfiles), dtype=object)
+subsa = np.empty(len(onlyfiles), dtype=object)
+
+for i in range(1, len(onlyfiles)-1):
+  subsag[i] = cv2.subtract(gray[i], gray[len(onlyfiles)-1])
+  subsa[i] = cv2.subtract(resizeImages[i], resizeImages[len(onlyfiles)-1])
+	
+cv2.imshow('cv2_subsag30', subsag[30])
+cv2.imshow('cv2_subsa30', subsa[30])
+
+
+#sol-ans vs ans-sol
+
+subsa = np.empty(len(onlyfiles), dtype=object)
+subas = np.empty(len(onlyfiles), dtype=object)
+
+for i in range(1, len(onlyfiles)-1):
+  subsa[i] = cv2.subtract(gray[i], gray[len(onlyfiles)-1])
+  subas[i] = cv2.subtract(gray[len(onlyfiles)-1], gray[i])
