@@ -57,17 +57,17 @@ for i in range(1, len(onlyfiles)-1):
 
 #23/10/18
 
-#contours on an image
+#contours of an image onto another image
 #could make array to put contours on them all?
 
-img = cv2.imread('C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram\\student26.jpg')
-imgray = cv2.cvtColor(img ,cv2.COLOR_BGR2GRAY)
-ret,thresh = cv2.threshold(imgray,127,255,0)
+img = gray[44]
+img1 = resizeImages[26]
+ret,thresh = cv2.threshold(img,127,255,0)
 im2, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-cv2.imshow('contours',cv2.drawContours(img, contours, -1, (0,255,0), 3))
+cv2.imshow('contours',cv2.drawContours(img1, contours, -1, (0,255,0), 1))
 
 
-#find a template in an image *not working yet*
+#find a template in an image 
 img = cv2.imread('C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram\\student26.jpg',0)
 img2 = img.copy()
 template = cv2.imread('C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram\\student44.jpg',0)
@@ -101,3 +101,77 @@ for meth in methods:
   plt.suptitle(meth)
 
   plt.show()
+  
+  
+  
+  #27/10/18
+  #count no. of coloured pixels - not working
+  boundaries = [
+	([17, 15, 100], [50, 56, 200]),
+	([86, 31, 4], [220, 88, 50]),
+	([25, 146, 190], [62, 174, 250]),
+	([103, 86, 65], [145, 133, 128])
+]
+
+# loop over the boundaries
+for (lower, upper) in boundaries:
+	# create NumPy arrays from the boundaries
+  lower = np.array(lower, dtype = "uint8")
+  upper = np.array(upper, dtype = "uint8")
+ 
+	# find the colors within the specified boundaries and apply
+	# the mask
+  mask = cv2.inRange(img, lower, upper)
+  output = cv2.bitwise_and(img, img, mask = mask)
+  cv2.imshow("images", np.hstack([img, output]))
+  
+  
+  
+  #28/10/18
+  #counting num of changed pixels Painfully slow!
+  #base black taken from student 24 due to lecturer being a diff size
+# base black is 330 pixels
+
+pix = []
+pixans = []
+
+for n in range(0, len(gray)):
+  countg = 0
+  for i in range(0, 450):
+    for j in range(0, 500):
+      if np.all(gray[n][i,j] != [255,255,255]):
+        countg += 1
+  pix.append(countg)
+
+numPix = 0
+
+for n in range(0, len(pix)):
+  numPix = pix[44]-pix[n]
+  pixans.append(numPix)
+  print(str(n), pixans[n])
+  numPix = 0
+
+print(pix[44])
+
+
+#score and diff
+#https://www.pyimagesearch.com/2017/06/19/image-difference-with-opencv-and-python/
+
+i=0
+j=0
+right = np.empty(len(onlyfiles), dtype=object)
+wrong = np.empty(len(onlyfiles), dtype=object)
+for n in range(0, len(onlyfiles)):
+	(score, diff) = compare_ssim(gray[42], gray[n], full=True)
+	diff = (diff * 255).astype("uint8")
+	#if score >=0.9123:
+	print(str(n), "SSIM: {}".format(score))
+		#right[i]=gray[n]
+		#i+=1
+	#else:
+	#	wrong[j]=gray[n]
+	#	j+=1
+	score = 0
+	diff = 0
+
+  
