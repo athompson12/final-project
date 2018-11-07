@@ -173,5 +173,135 @@ for n in range(0, len(onlyfiles)):
 	#	j+=1
 	score = 0
 	diff = 0
+	
+#contours - not working
+thresh = cv2.threshold(diff, 0, 255,
+	cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
+	cv2.CHAIN_APPROX_SIMPLE)
+cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+
+for c in cnts:
+	# compute the bounding box of the contour and then draw the
+	# bounding box on both input images to represent where the two
+	# images differ
+	(x, y, w, h) = cv2.boundingRect(c)
+	cv2.rectangle(gray[44], (x, y), (x + w, y + h), (0, 0, 255), 2)
+	cv2.rectangle(gray[25], (x, y), (x + w, y + h), (0, 0, 255), 2)
+ 
+# show the output images
+cv2.imshow("Original", gray[44])
+cv2.imshow("Modified", gray[25])
+cv2.imshow("Diff", diff)
+cv2.imshow("Thresh", thresh)
 
   
+3/11/18
+#sql
+import mysql.connector
+from mysql.connector import errorcode
+
+try:
+  cnx = mysql.connector.connect(user='root',
+                                database='UniDoodle',
+				password= '')
+																password= '')
+except mysql.connector.Error as err:
+  if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+    print("Something is wrong with your user name or password")
+  elif err.errno == errorcode.ER_BAD_DB_ERROR:
+    print("Database does not exist")
+  else:
+    print(err)
+else:
+  cnx.close()
+  
+  
+#5/11/18
+#SIFT - sift has problems in opencv 3.4
+def drawMatches(img1, kp1, img2, kp2, matches):
+
+    rows1 = img1.shape[0]
+    cols1 = img1.shape[1]
+    rows2 = img2.shape[0]
+    cols2 = img2.shape[1]
+
+    out = np.zeros((max([rows1,rows2]),cols1+cols2,3), dtype='uint8')
+    out[:rows1,:cols1] = np.dstack([img1])
+    out[:rows2,cols1:] = np.dstack([img2])
+    for mat in matches:
+        img1_idx = mat.queryIdx
+        img2_idx = mat.trainIdx
+        (x1,y1) = kp1[img1_idx].pt
+        (x2,y2) = kp2[img2_idx].pt
+
+        cv2.circle(out, (int(x1),int(y1)), 4, (255, 0, 0, 1), 1)   
+        cv2.circle(out, (int(x2)+cols1,int(y2)), 4, (255, 0, 0, 1), 1)
+        cv2.line(out, (int(x1),int(y1)), (int(x2)+cols1,int(y2)), (255, 0, 0, 1), 1)
+
+    return out
+
+def compare(filename1, filename2):
+    img1 = cv2.imread(filename1)          # queryImage
+    img2 = cv2.imread(filename2)          # trainImage
+
+    # Initiate SIFT detector
+    sift = cv2.SIFT()
+
+    # find the keypoints and descriptors with SIFT
+    kp1, des1 = sift.detectAndCompute(img1,None)
+    kp2, des2 = sift.detectAndCompute(img2,None)
+
+    # BFMatcher with default params
+    bf = cv2.BFMatcher()
+    matches = bf.match(des1,des2)
+
+    matches = sorted(matches, key=lambda val: val.distance)
+
+    img3 = drawMatches(img1,kp1,img2,kp2,matches[:25])
+
+    # Show the image
+    cv2.imshow('Matched Features', img3)
+    cv2.waitKey(0)
+    cv2.destroyWindow('Matched Features')
+
+if len(sys.argv) != 3:
+    sys.stderr.write("usage: compare.py <queryImageFile> <sourceImageFile>\n")
+    sys.exit(-1)
+    
+compare(sys.argv[1], sys.argv[2])
+
+
+#contours from correct ans onto other images
+for n in range(0, len(resizeImages)):
+	img = images[44]
+	img1 = images[n]
+	ret,thresh = cv2.threshold(img,127,255,0)
+	im2, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+	cont[n]=cv2.drawContours(img1, contours, -1, (0,128,0), 1)
+
+cv2.imshow('image 5', cont[5])
+cv2.imshow('image 25', cont[25])
+cv2.imshow('image 35', cont[35])
+cv2.imshow('image 40', cont[40])
+
+
+#SSIM score and diff
+i=0
+j=0
+
+for n in range(0, len(onlyfiles)):
+	(score, diff) = compare_ssim(gray[42], gray[n], full=True)
+	diff = (diff * 255).astype("uint8")
+	#if score >=0.9123:
+	print(str(n), "SSIM: {}".format(score))
+		#right[i]=images[n]
+		#i+=1
+	#else:
+	#	wrong[j]=images[n]
+	#	j+=1
+	score = 0
+	diff = 0
+
+print(i,j)
+
