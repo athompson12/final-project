@@ -442,4 +442,52 @@ for n in range (0, len(onlyfiles)):
             print(str(n), 'Method:', compare_method, ' Base-Test(1) :', base_test1)
 #1=correlation, 2=chi-square, 3=intersection, 4=bhattacharyya
 
-  
+#crop, resze and SSIM
+def crop_image(img):
+    #prevent changes to original image
+    img_o = img.copy()
+    
+    gray = cv2.cvtColor(img_o, cv2.COLOR_BGR2GRAY) # convert to grayscale
+
+    # threshold 
+    retval, thresh_gray = cv2.threshold(gray, thresh=200, maxval=256, type=cv2.THRESH_BINARY)
+
+    #find black pixels
+    points = np.argwhere(thresh_gray==0) 
+    #store in x, y coords
+    points = np.fliplr(points)     
+    
+    x, y, w, h = cv2.boundingRect(points) 
+    
+    #expand box and do not allow negative (image may be x,y 0,0)
+    x, y, w, h = x-10 if x-10>0 else 0, y-10 if y-10>0 else 0,w+20, h+20 
+    #print(x,y,w,h)
+    
+    # create a cropped region of the gray image
+    crop = img[y:y+h, x:x+w] 
+
+    return crop
+
+#orig_img = crop_image(orig_img)
+#comp_img = crop_image(comp_img)
+
+size = []
+
+for n in range(0, len(onlyfiles)):
+    crop[n] = crop_image(image[n])
+    size.append(crop[n].shape)
+
+#identify smallest image size
+small = min(size)[:2][::-1]
+
+for n in range(0, len(onlyfiles)):
+    resize[n] = cv2.resize(crop[n], dsize = small)
+    gray[n] = cv2.cvtColor(resize[n].copy(), cv2.COLOR_BGR2GRAY)
+
+
+for n in range(0, len(onlyfiles)):
+    (score, diff) = compare_ssim(resize[44], resize[n], full=True, multichannel=True)
+    print(str(n),"SSIM: %.2f" % (score))
+    (score, diff) = compare_ssim(gray[44], gray[n], full=True,multichannel=False,gaussian_weights=True)
+    print(str(n),"Gray SSIM: %.2f" % (score))
+
