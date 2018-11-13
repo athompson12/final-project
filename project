@@ -305,3 +305,141 @@ for n in range(0, len(onlyfiles)):
 
 print(i,j)
 
+
+##8/11/18
+##image recognision
+
+from __future__ import print_function
+import cv2
+import numpy as np
+ 
+ 
+MAX_FEATURES = 500
+GOOD_MATCH_PERCENT = 0.15
+ 
+ 
+def alignImages(im1, im2):
+ 
+  # Convert images to grayscale
+  im1Gray = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
+  im2Gray = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
+   
+  # Detect ORB features and compute descriptors.
+  orb = cv2.ORB_create(MAX_FEATURES)
+  keypoints1, descriptors1 = orb.detectAndCompute(im1Gray, None)
+  keypoints2, descriptors2 = orb.detectAndCompute(im2Gray, None)
+   
+  # Match features.
+  matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
+  matches = matcher.match(descriptors1, descriptors2, None)
+   
+  # Sort matches by score
+  matches.sort(key=lambda x: x.distance, reverse=False)
+ 
+  # Remove not so good matches
+  numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
+  matches = matches[:numGoodMatches]
+ 
+  # Draw top matches
+  imMatches = cv2.drawMatches(im1, keypoints1, im2, keypoints2, matches, None)
+  cv2.imwrite("matches.jpg", imMatches)
+   
+  # Extract location of good matches
+  points1 = np.zeros((len(matches), 2), dtype=np.float32)
+  points2 = np.zeros((len(matches), 2), dtype=np.float32)
+ 
+  for i, match in enumerate(matches):
+    points1[i, :] = keypoints1[match.queryIdx].pt
+    points2[i, :] = keypoints2[match.trainIdx].pt
+   
+  # Find homography
+  h, mask = cv2.findHomography(points1, points2, cv2.RANSAC)
+ 
+  # Use homography
+  height, width, channels = im2.shape
+  im1Reg = cv2.warpPerspective(im1, h, (width, height))
+   
+  return im1Reg, h
+ 
+ 
+if __name__ == '__main__':
+   
+  # Read reference image
+  refFilename = "C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram\\student42.jpg"
+  print("Reading reference image : ", refFilename)
+  imReference = cv2.imread(refFilename, cv2.IMREAD_COLOR)
+ 
+  # Read image to be aligned
+  imFilename = "C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram\\student25.jpg"
+  print("Reading image to align : ", imFilename);  
+  im = cv2.imread(imFilename, cv2.IMREAD_COLOR)
+   
+  print("Aligning images ...")
+  # Registered image will be resotred in imReg. 
+  # The estimated homography will be stored in h. 
+  imReg, h = alignImages(im, imReference)
+   
+  # Write aligned image to disk. 
+  outFilename = "aligned.jpg"
+  print("Saving aligned image : ", outFilename); 
+  cv2.imwrite(outFilename, imReg)
+ 
+  # Print estimated homography
+  print("Estimated homography : \n",  h)
+  
+  
+  #13/11/18
+  #hist and template matching
+  #method 1
+def get_image_difference(image_1, image_2):
+    first_image_hist = cv2.calcHist([image_1], [0], None, [256], [0, 256])
+    second_image_hist = cv2.calcHist([image_2], [0], None, [256], [0, 256])
+    img_hist_diff = cv2.compareHist(first_image_hist, second_image_hist, cv2.HISTCMP_BHATTACHARYYA)
+    img_template_probability_match = cv2.matchTemplate(first_image_hist, second_image_hist, cv2.TM_CCOEFF_NORMED)[0][0]
+    img_template_diff = 1 - img_template_probability_match
+
+    # taking only 10% of histogram diff, since it's less accurate than template method
+    commutative_image_diff = (img_hist_diff / 10) + img_template_diff
+    return commutative_image_diff
+
+minimum_commutative_image_diff = 1
+image_1 =gray[31]
+image_2 = gray[42]
+commutative_image_diff = get_image_difference(image_1, image_2)
+
+if commutative_image_diff < minimum_commutative_image_diff:      
+    print("Matched")
+    print(commutative_image_diff) 
+else:
+    print("fail") #random failure value
+
+#method 2
+src_base = resize[44]
+hsv_base = cv2.cvtColor(src_base, cv2.COLOR_BGR2HSV)
+
+hsv_half_down = hsv_base[hsv_base.shape[0]//2:,:]
+h_bins = 50
+s_bins = 60
+histSize = [h_bins, s_bins]
+# hue varies from 0 to 179, saturation from 0 to 255
+h_ranges = [0, 180]
+s_ranges = [0, 256]
+ranges = h_ranges + s_ranges # concat lists
+# Use the 0-th and 1-st channels
+channels = [0, 1]
+
+
+hist_base = cv2.calcHist([hsv_base], channels, None, histSize, ranges, accumulate=False)
+cv2.normalize(hist_base, hist_base, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+for n in range (0, len(onlyfiles)):
+    hsv_test1 = cv2.cvtColor(resize[n], cv2.COLOR_BGR2HSV)
+    hist_test1 = cv2.calcHist([hsv_test1], channels, None, histSize, ranges, accumulate=False)
+    cv2.normalize(hist_test1, hist_test1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+    for compare_method in range(4):
+        base_test1 = cv2.compareHist(hist_base, hist_test1, compare_method)
+            print(str(n), 'Method:', compare_method, ' Base-Test(1) :', base_test1)
+#1=correlation, 2=chi-square, 3=intersection, 4=bhattacharyya
+
+  
