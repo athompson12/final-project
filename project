@@ -205,7 +205,7 @@ try:
   cnx = mysql.connector.connect(user='root',
                                 database='UniDoodle',
 				password= '')
-																
+															
 except mysql.connector.Error as err:
   if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
     print("Something is wrong with your user name or password")
@@ -306,91 +306,81 @@ for n in range(0, len(onlyfiles)):
 print(i,j)
 
 
-##8/11/18
-##image recognision
+##9/11/18
+#crop and resize wrt black pixels!!!!!!!!!!!!!!!!
+#and compare SSIM
 
-from __future__ import print_function
+from skimage.measure import compare_ssim
 import cv2
 import numpy as np
- 
- 
-MAX_FEATURES = 500
-GOOD_MATCH_PERCENT = 0.15
- 
- 
-def alignImages(im1, im2):
- 
-  # Convert images to grayscale
-  im1Gray = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
-  im2Gray = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
-   
-  # Detect ORB features and compute descriptors.
-  orb = cv2.ORB_create(MAX_FEATURES)
-  keypoints1, descriptors1 = orb.detectAndCompute(im1Gray, None)
-  keypoints2, descriptors2 = orb.detectAndCompute(im2Gray, None)
-   
-  # Match features.
-  matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
-  matches = matcher.match(descriptors1, descriptors2, None)
-   
-  # Sort matches by score
-  matches.sort(key=lambda x: x.distance, reverse=False)
- 
-  # Remove not so good matches
-  numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
-  matches = matches[:numGoodMatches]
- 
-  # Draw top matches
-  imMatches = cv2.drawMatches(im1, keypoints1, im2, keypoints2, matches, None)
-  cv2.imwrite("matches.jpg", imMatches)
-   
-  # Extract location of good matches
-  points1 = np.zeros((len(matches), 2), dtype=np.float32)
-  points2 = np.zeros((len(matches), 2), dtype=np.float32)
- 
-  for i, match in enumerate(matches):
-    points1[i, :] = keypoints1[match.queryIdx].pt
-    points2[i, :] = keypoints2[match.trainIdx].pt
-   
-  # Find homography
-  h, mask = cv2.findHomography(points1, points2, cv2.RANSAC)
- 
-  # Use homography
-  height, width, channels = im2.shape
-  im1Reg = cv2.warpPerspective(im1, h, (width, height))
-   
-  return im1Reg, h
- 
- 
-if __name__ == '__main__':
-   
-  # Read reference image
-  refFilename = "C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram\\student42.jpg"
-  print("Reading reference image : ", refFilename)
-  imReference = cv2.imread(refFilename, cv2.IMREAD_COLOR)
- 
-  # Read image to be aligned
-  imFilename = "C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram\\student25.jpg"
-  print("Reading image to align : ", imFilename);  
-  im = cv2.imread(imFilename, cv2.IMREAD_COLOR)
-   
-  print("Aligning images ...")
-  # Registered image will be resotred in imReg. 
-  # The estimated homography will be stored in h. 
-  imReg, h = alignImages(im, imReference)
-   
-  # Write aligned image to disk. 
-  outFilename = "aligned.jpg"
-  print("Saving aligned image : ", outFilename); 
-  cv2.imwrite(outFilename, imReg)
- 
-  # Print estimated homography
-  print("Estimated homography : \n",  h)
-  
-  
-  #13/11/18
-  #hist and template matching
-  #method 1
+import matplotlib.pyplot as plt
+from os import listdir
+from os.path import isfile, join
+
+mypath='C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\SeamusVennDiagram'
+onlyfiles = [ f for f in listdir(mypath) if isfile(join(mypath,f)) ]
+images = np.empty(len(onlyfiles), dtype=object)
+crop = np.empty(len(onlyfiles), dtype=object)
+resize = np.empty(len(onlyfiles), dtype=object)
+gray = np.empty(len(onlyfiles), dtype=object)
+cont = np.empty(len(onlyfiles), dtype=object)
+
+#fill array 
+for n in range(0, len(onlyfiles)):
+	images[n] = cv2.imread(join(mypath,onlyfiles[n]))
+
+def crop_image(img):
+    #prevent changes to original image
+    img_o = img.copy()
+    
+    gray = cv2.cvtColor(img_o, cv2.COLOR_BGR2GRAY) # convert to grayscale
+
+    # threshold 
+    retval, thresh_gray = cv2.threshold(gray, thresh=200, maxval=256, type=cv2.THRESH_BINARY)
+
+    #find black pixels
+    points = np.argwhere(thresh_gray==0) 
+    #store in x, y coords
+    points = np.fliplr(points)     
+    
+    x, y, w, h = cv2.boundingRect(points) 
+    
+    #expand box and do not allow negative (image may be x,y 0,0)
+    x, y, w, h = x-10 if x-10>0 else 0, y-10 if y-10>0 else 0,w+20, h+20 
+    #print(x,y,w,h)
+    
+    # create a cropped region of the gray image
+    crop = img[y:y+h, x:x+w] 
+
+    return crop
+
+
+#orig_img = crop_image(orig_img)
+#comp_img = crop_image(comp_img)
+
+size = []
+
+for n in range(0, len(onlyfiles)):
+    crop[n] = crop_image(images[n])
+    size.append(crop[n].shape)
+
+#identify smallest image size
+small = min(size)[:2][::-1]
+
+for n in range(0, len(onlyfiles)):
+    resize[n] = cv2.resize(crop[n], dsize = small)
+    gray[n] = cv2.cvtColor(resize[n].copy(), cv2.COLOR_BGR2GRAY)
+
+    
+for n in range(0, len(onlyfiles)):
+    (score, diff) = compare_ssim(resize[30], resize[n], full=True, multichannel=True)
+    print(str(n),"SSIM: %.2f" % (score))
+    (score, diff) = compare_ssim(gray[30], gray[n], full=True,multichannel=False,gaussian_weights=True)
+    print(str(n),"Gray SSIM: %.2f" % (score))
+
+
+#13/11/18
+#Hist and template matching
 def get_image_difference(image_1, image_2):
     first_image_hist = cv2.calcHist([image_1], [0], None, [256], [0, 256])
     second_image_hist = cv2.calcHist([image_2], [0], None, [256], [0, 256])
@@ -413,6 +403,7 @@ if commutative_image_diff < minimum_commutative_image_diff:
 else:
     print("fail") #random failure value
 
+#histogram comparison
 #method 2
 src_base = resize[44]
 hsv_base = cv2.cvtColor(src_base, cv2.COLOR_BGR2HSV)
@@ -512,3 +503,4 @@ cv2.imshow('subimage 40', cv2.subtract(resize[42], resize[44]))
 
 cv2.waitKey(0) & 0xFF
 cv2.destroyAllWindows()
+
