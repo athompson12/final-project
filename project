@@ -504,3 +504,161 @@ cv2.imshow('subimage 40', cv2.subtract(resize[42], resize[44]))
 cv2.waitKey(0) & 0xFF
 cv2.destroyAllWindows()
 
+19/11/2018
+Full project with 2 hist comparisons 
+
+#from skimage.measure import compare_ssim
+import cv2
+import numpy as np
+from os import listdir
+from os.path import isfile, join
+import os.path
+import sys
+import math
+
+
+mypath='C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\Answers'
+onlyfiles = [ f for f in listdir(mypath) if isfile(join(mypath,f)) ]
+image = np.empty(len(onlyfiles), dtype=object)
+crop = np.empty(len(onlyfiles), dtype=object)
+resize = np.empty(len(onlyfiles), dtype=object)
+gray = np.empty(len(onlyfiles), dtype=object)
+cont = np.empty(len(onlyfiles), dtype=object)
+
+#fill array 
+for n in range(0, len(onlyfiles)):
+	image[n] = cv2.imread(join(mypath,onlyfiles[n]))
+
+
+def crop_image(img):
+    #prevent changes to original image
+    img_o = img.copy()
+    
+    gray = cv2.cvtColor(img_o, cv2.COLOR_BGR2GRAY) # convert to grayscale
+
+    # threshold 
+    retval, thresh_gray = cv2.threshold(gray, thresh=200, maxval=256, type=cv2.THRESH_BINARY)
+
+    #find black pixels
+    points = np.argwhere(thresh_gray==0) 
+    #store in x, y coords
+    points = np.fliplr(points)     
+    
+    x, y, w, h = cv2.boundingRect(points) 
+    
+    #expand box and do not allow negative (image may be x,y 0,0)
+    x, y, w, h = x-10 if x-10>0 else 0, y-10 if y-10>0 else 0,w+20, h+20 
+    #print(x,y,w,h)
+    
+    # create a cropped region of the gray image
+    crop = img[y:y+h, x:x+w] 
+
+    return crop
+
+#orig_img = crop_image(orig_img)
+#comp_img = crop_image(comp_img)
+
+size = []
+
+for n in range(0, len(onlyfiles)):
+    crop[n] = crop_image(image[n])
+    size.append(crop[n].shape)
+
+#identify smallest image size
+small = min(size)[:2][::-1]
+
+for n in range(0, len(onlyfiles)):
+    resize[n] = cv2.resize(crop[n], dsize = small)
+    gray[n] = cv2.cvtColor(resize[n].copy(),cv2.COLOR_BGR2GRAY)
+
+h, w = gray[5].shape
+leng = len(gray)
+
+n = 255
+m = leng + 1
+hist = []
+hBar = []
+for i in range(n):
+    hist.append([i] * m)
+
+index = 0
+for k in range(0,leng):
+     print(k)
+     index = index + 1
+     img = resize[k]
+     for i in range(0, h):
+          for j in range(0, w):
+               g = img.item(i,j, 1)
+               if g != 255:
+                     x = hist[g][index] 
+                     hist[g][index] = x+1
+
+index = 1
+for k in range(0,leng):
+     total = 0
+     for j in range (0, len(hist)):
+          total = total + hist[j][index]
+     hBar.append(total/n)
+     index = index + 1
+
+diff = []
+
+for j in range (0,leng):
+     first = 0
+     first2 = 0
+     sec = 0
+     sec2 = 0
+     top = 0
+     sumFir = 0
+     sumSec = 0
+     bottom = 0
+     for i in range (0, len(hist)):
+          first = hist[i][6] - hBar[5]
+          first2 = first * first
+          sec = hist[i][j+1] - hBar[j]
+          sec2 = sec * sec
+          top = top + (first * sec)
+          sumFir = sumFir + first2
+          sumSec = sumSec + sec2
+     bottom = math.sqrt(sumFir*sumSec)
+     ans = top/bottom
+     diff.append(ans)
+     print(diff[j])
+
+src_base = resize[5]
+hsv_base = cv2.cvtColor(src_base, cv2.COLOR_BGR2HSV)
+
+hsv_half_down = hsv_base[hsv_base.shape[0]//2:,:]
+h_bins = 50
+s_bins = 60
+histSize = [h_bins, s_bins]
+# hue varies from 0 to 179, saturation from 0 to 255
+h_ranges = [0, 180]
+s_ranges = [0, 256]
+ranges = h_ranges + s_ranges # concat lists
+# Use the 0-th and 1-st channels
+channels = [0, 1]
+
+
+hist_base = cv2.calcHist([hsv_base], channels, None, histSize, ranges, accumulate=False)
+cv2.normalize(hist_base, hist_base, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+for n in range (0, len(gray)):
+    hsv_test1 = cv2.cvtColor(resize[n], cv2.COLOR_BGR2HSV)
+    hist_test1 = cv2.calcHist([hsv_test1], channels, None, histSize, ranges, accumulate=False)
+    cv2.normalize(hist_test1, hist_test1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+    for compare_method in range(0,2):
+          base_test1 = cv2.compareHist(hist_base, hist_test1, compare_method)
+          print(str(n), 'Method:', compare_method, ' Base-Test(1) :', base_test1)
+
+
+"""
+cv2.imshow('as1', cv2.subtract(gray[1], gray[5]))
+cv2.imshow('sa', cv2.subtract(gray[5], gray[1]))
+cv2.imshow('as9', cv2.subtract(gray[5], gray[8]))
+cv2.imshow('sa9', cv2.subtract(gray[8], gray[5]))
+
+cv2.waitKey(0) & 0xFF
+cv2.destroyAllWindows()
+"""
