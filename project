@@ -684,3 +684,186 @@ for k in range(0,leng):
           wrong[index] = gray[k]
           wrongCol[index] =  resize[k]
           index = 1 + index 
+
+
+
+29/11/18
+#all of it!!
+import cv2
+import numpy as np
+from os import listdir
+from os.path import isfile, join
+import os.path
+import math
+print("imported")
+
+mypath='C:\\Users\\Amy\\Desktop\\Com. Science\\Project\\Answers'
+onlyfiles = [ f for f in listdir(mypath) if isfile(join(mypath,f)) ]
+image = np.empty(len(onlyfiles), dtype=object)
+crop = np.empty(len(onlyfiles), dtype=object)
+resize = np.empty(len(onlyfiles), dtype=object)
+gray = np.empty(len(onlyfiles), dtype=object)
+wrong = np.empty(len(onlyfiles), dtype=object)
+wrongCol = np.empty(len(onlyfiles), dtype=object)
+
+#fill array 
+for n in xrange(len(onlyfiles)):
+	image[n] = cv2.imread(join(mypath,onlyfiles[n]))
+
+def crop_image(img):
+    img_o = img.copy()
+    gray = cv2.cvtColor(img_o, cv2.COLOR_BGR2GRAY)
+    retval, thresh_gray = cv2.threshold(gray, thresh=200, maxval=256, type=cv2.THRESH_BINARY)
+    points = np.argwhere(thresh_gray==0) 
+    points = np.fliplr(points)     
+    x, y, w, h = cv2.boundingRect(points) 
+    x, y, w, h = x-10 if x-10>0 else 0, y-10 if y-10>0 else 0,w+20, h+20 
+    crop = img[y:y+h, x:x+w] 
+    return crop
+
+size = []
+#all cropped images
+for n in xrange(len(onlyfiles)):
+    crop[n] = crop_image(image[n])
+    size.append(crop[n].shape)
+
+#identify smallest image size
+small = min(size)[:2][::-1]
+
+#all images the same size
+for n in xrange(len(onlyfiles)):
+    resize[n] = cv2.resize(crop[n], dsize = small)
+    gray[n] = cv2.cvtColor(resize[n].copy(),cv2.COLOR_BGR2GRAY)
+
+correct = input("Enter correct answer ") 
+correct = correct - 1
+
+#my correlation 
+def cor(resize, correct, leng):
+     h, w, c = resize[correct].shape
+     n = 255
+     m = leng + 1
+     hist = []
+     hBar = np.zeros(leng)
+     correlation = np.zeros(leng)
+
+     for i in xrange(n):
+          hist.append([i] * m)
+
+     index = 0
+     for k in xrange(leng):
+          print(k)
+          index = index + 1
+          num = 0
+          for i in xrange(h):
+               for j in xrange(w):
+                    g = resize[k].item(i,j, 1)
+                    if g != 255:
+                         x = hist[g][index] 
+                         hist[g][index] = x+1
+          total = 0
+          for j in xrange (len(hist)):
+               total = total + hist[j][num]
+               val = total/n
+          hBar = np.insert(hBar, k, val)
+          num = num + 1
+
+     for j in xrange (leng):
+          first = 0.0
+          first2 = 0.0
+          sec = 0.0
+          sec2 = 0.0
+          top = 0.0
+          sumFir = 0.0
+          sumSec = 0.0
+          bottom = 0.0
+          for i in xrange (0, len(hist)):
+               first = hist[i][correct+1] - hBar[correct]
+               first2 = first * first
+               sec = hist[i][j+1] - hBar[j]
+               sec2 = sec * sec
+               top = top + (first * sec)
+               sumFir = sumFir + first2
+               sumSec = sumSec + sec2
+          bottom = math.sqrt(sumFir*sumSec)
+          ans = top/bottom
+          correlation = np.insert(correlation, j, ans) 
+     return correlation
+
+#my intersection
+def intersec(gray, correct, leng):
+     h, w = gray[correct].shape
+     intersection = np.zeros(leng)
+
+     for k in xrange(leng):
+          num = 0.0
+          white = 0.0
+          bottom = 0.0
+          val = 0.0
+          print(k)
+          for i in xrange(h):
+               for j in xrange(w):
+                    if gray[k].item(i,j) == 255 and  gray[correct].item(i,j) == 255:
+                         white = white + 1
+                    
+                    elif gray[k].item(i,j) != 255 and gray[correct].item(i,j) != 255:
+                         num = num +1
+          bottom = gray[correct].size - white
+          val = num/bottom
+          intersection = np.insert(intersection, k, val)
+     return intersection
+
+#get lengths and call functions
+lengGr = len(gray)
+correlation = cor(resize, correct, lengGr)
+intersection = intersec(gray, correct, lengGr)
+
+"""
+for k in range(lengGr):
+     print(str(k),correlation[k], intersection[k])
+"""
+#print rights answers, seperate right and wrong
+right = []
+print("correct answers")
+
+index = 0
+for k in xrange(lengGr):
+     if correlation[k] >= 0.93 and intersection[k] >=0.9:
+          right.append(k)
+          print k
+     else:
+          wrong[index] = gray[k]
+          wrongCol[index] =  resize[k]
+          index = 1 + index 
+
+#print percentage
+numRightAns = float(len(right))
+totalAns = float(lengGr)
+print("Percentage of correct answers ",(numRightAns/totalAns)*100)
+print("Num of right ans", str(numRightAns))
+numWrong = lengGr - len(right) 
+corWrong = np.zeros(numWrong)
+intWrong = np.zeros(numWrong)
+print("Num of wrong ans", str(numWrong))
+wrongCol = np.resize(wrongCol,numWrong)
+wrong = np.resize(wrong,numWrong)
+
+#call cor and int on wrong images
+for k in xrange(numWrong):
+     corK = np.zeros(k)
+     intK = np.zeros(k)
+     corK= cor(wrongCol, k, k+1)
+     intK = intersec(wrong, k, k+1)
+     corWrong = np.concatenate((corWrong, corK), axis=0)
+     intWrong = np.concatenate((intWrong, intK), axis=0)
+
+
+
+#Show images
+"""
+cv2.imshow('wrong2', wrong[2])
+cv2.imshow('wrong col', wrongCol[20])
+
+cv2.waitKey(0) & 0xFF
+cv2.destroyAllWindows()
+"""
