@@ -1,7 +1,281 @@
 from Tkinter import *
+import Tkinter, tkFileDialog, tkMessageBox
+import threading
+import ttk
+from ttk import Progressbar
+import cv2
+import numpy as np
+from os import listdir
 import os
-import Tkinter, Tkconstants, tkFileDialog
+from os.path import isfile, join
+import os.path
+import math
+import time
 
-root = Tk()
-root.directory = tkFileDialog.askdirectory()
-print (root.directory)
+global bar
+bar = None
+
+
+def files():
+     global mypath
+     global var3
+     root.directory = tkFileDialog.askdirectory()
+     mypath = root.directory
+     var3.set( str(mypath) + " loaded") 
+
+def clicked():
+     global correct
+     correct = int(txt.get())
+     fill(correct, mypath)
+
+def crop_image(img):
+    img_o = img.copy()
+    gray = cv2.cvtColor(img_o, cv2.COLOR_BGR2GRAY)
+    retval, thresh_gray = cv2.threshold(gray, thresh=200, maxval=256, type=cv2.THRESH_BINARY)
+    points = np.argwhere(thresh_gray==0) 
+    points = np.fliplr(points)     
+    x, y, w, h = cv2.boundingRect(points) 
+    x, y, w, h = x-10 if x-10>0 else 0, y-10 if y-10>0 else 0,w+20, h+20 
+    crop = img[y:y+h, x:x+w] 
+    return crop
+ 
+def cor(resize, correct, leng):
+     h, w, c = resize[correct].shape
+     n = 255
+     m = leng + 1
+     hist = []
+     hBar = np.zeros(leng)
+     correlation = np.zeros(leng)
+
+     for i in xrange(n):
+          hist.append([i] * m)
+
+     index = 0
+     for k in xrange(leng):  
+          percent = float(k+1)/float(leng)*100
+          #print(str(percent) + "%")
+          index = index + 1
+          num = 0
+          for i in xrange(h):
+               for j in xrange(w):
+                    g = resize[k].item(i,j, 1)
+                    if g != 255:
+                         x = hist[g][index] 
+                         hist[g][index] = x+1
+          total = 0
+          for j in xrange (len(hist)):
+               total = total + hist[j][num]
+               val = total/n
+          hBar = np.insert(hBar, k, val)
+          num = num + 1
+
+     for j in xrange (leng):
+          first = 0.0
+          first2 = 0.0
+          sec = 0.0
+          sec2 = 0.0
+          top = 0.0
+          sumFir = 0.0
+          sumSec = 0.0
+          bottom = 0.0
+          for i in xrange (0, len(hist)):
+               first = hist[i][correct+1] - hBar[correct]
+               first2 = first * first
+               sec = hist[i][j+1] - hBar[j]
+               sec2 = sec * sec
+               top = top + (first * sec)
+               sumFir = sumFir + first2
+               sumSec = sumSec + sec2
+          bottom = math.sqrt(sumFir*sumSec)
+          ans = top/bottom
+          correlation = np.insert(correlation, j, ans) 
+     return correlation
+
+def intersec(gray, correct, leng):
+     h, w = gray[correct].shape
+     intersection = np.zeros(leng)
+
+     for k in xrange(leng):
+          num = 0.0
+          white = 0.0
+          bottom = 0.0
+          val = 0.0
+          percent = float(k+1)/float(leng)*100
+          for i in xrange(h):
+               for j in xrange(w):
+                    if gray[k].item(i,j) == 255 and gray[correct].item(i,j) == 255:
+                              white = white + 1
+                    
+                    elif gray[k].item(i,j) != 255 and gray[correct].item(i,j) != 255:
+                                   num = num +1
+          bottom = gray[correct].size - white
+          val = num/bottom
+          intersection = np.insert(intersection, k, val)
+     return intersection
+
+def fill(crt, mypath):
+
+     global var4
+     var4.set("Analysising images")
+
+     correct = crt
+     
+     onlyfiles = [ f for f in listdir(mypath) if isfile(join(mypath,f)) ]
+     if correct > len(onlyfiles) or correct <= 0:
+          errorMess(correct)
+
+     if correct <= 0:
+          quit()
+
+     correct = correct - 1 
+
+     image = np.empty(len(onlyfiles), dtype=object)
+     crop = np.empty(len(onlyfiles), dtype=object)
+     resize = np.empty(len(onlyfiles), dtype=object)
+     gray = np.empty(len(onlyfiles), dtype=object)
+     wrong = np.empty(len(onlyfiles), dtype=object)
+     wrongCol = np.empty(len(onlyfiles), dtype=object)
+
+     #fill array 
+     for n in xrange(len(onlyfiles)):
+          image[n] = cv2.imread(join(mypath,onlyfiles[n]))
+
+     size = []
+     #all cropped images
+     for n in xrange(len(onlyfiles)):
+          crop[n] = crop_image(image[n])
+          size.append(crop[n].shape)
+
+     #identify smallest image size
+     small = min(size)[:2][::-1]
+     h,w = small
+     h=h/3
+     w=w/3
+
+     #all images the same size
+     for n in xrange(len(onlyfiles)):
+          resize[n] = cv2.resize(crop[n], (w, h))
+          gray[n] = cv2.cvtColor(resize[n].copy(),cv2.COLOR_BGR2GRAY)
+ 
+     #get lengths and call functions
+     lengGr = len(gray)
+     correlation = cor(resize, correct, lengGr)
+     progress(50)
+     intersection = intersec(gray, correct, lengGr)
+     progress(100)
+
+     #print rights answers, seperate right and wrong
+     right = []
+
+     index = 0
+     for k in xrange(lengGr):
+          if correlation[k] >= 0.88 and intersection[k] >=0.92:
+               right.append(k)
+          else:
+               wrong[index] = gray[k]
+               wrongCol[index] =  resize[k]
+               index = 1 + index 
+
+     #print percentage
+     numRightAns = float(len(right))
+     totalAns = float(lengGr)
+     rightPer = round((numRightAns/totalAns)*100)
+     rightPrint(rightPer)
+     numWrong = lengGr - len(right) 
+     corWrong = np.zeros(numWrong)
+     intWrong = np.zeros(numWrong)
+     wrongCol = np.resize(wrongCol,numWrong)
+     wrong = np.resize(wrong,numWrong)
+     findWrong(numWrong, wrongCol, wrong)
+
+def findWrong(numWrong, wrongCol, wrong):
+     corK = np.zeros(numWrong)
+     intK = np.zeros(numWrong)
+     mostWrong = np.zeros(numWrong)
+
+     bar['value'] = 0
+     #call cor and int on wrong images
+     for k in xrange(numWrong):
+          corK= cor(wrongCol, k, k+1)
+          done = int((float(2*k+1)/float(numWrong*2))*100)
+          progress(done)
+          intK = intersec(wrong, k, k+1)
+          done1 = int((float(k+1)/float(numWrong))*100)
+          progress(done1)
+          corK = np.resize(corK,k+1)
+          intK = np.resize(intK,k+1)
+          for j in xrange(k):
+               if corK[j] >= 0.88 and intK[j] >=0.92:
+                    mostWrong[j] = mostWrong[j] + 1
+
+     max = np.max(mostWrong)
+     wrongPer = round((float(max)/float(numWrong))*100)
+     wrongPrint(wrongPer)
+    
+     for k in xrange(numWrong):
+          if mostWrong[k] == max:
+               wrong1 = wrongCol[k]
+               cv2.imshow('Most Wrong', wrong1)
+               mostWrong = np.delete(mostWrong, k)
+               wrongCol = np.delete(wrongCol, k)
+               break
+
+     cv2.waitKey(0) & 0xFF
+     cv2.destroyAllWindows()
+
+def rightPrint(rightPer):
+    global var
+    var.set(str(rightPer)+"% are correct")
+
+def wrongPrint(wrongPer):
+    global varWrong
+    varWrong.set("A minimum of "+str(wrongPer)+"% are the most common incorrect answer")
+
+
+def errorMess(numEntered):
+    global var1
+    var.set(str(numEntered)+" is not a valid input")
+
+def progress(num):
+     bar["value"]=num
+     bar.update()
+
+if __name__ == '__main__':
+     root = Tk()
+     root.title('Correcting of Venn Diagrams')
+     root.geometry('650x400')
+     style = ttk.Style()
+     mypath = None
+     lbl1 = ttk.Label(root, text="Step 1\nPlease select file of images\nPlease ensure files are named filename00, filename01, filename02 etc")
+     lbl1.grid(column=1, row=1, padx=10, pady=10)
+     btn1 = ttk.Button(root, text="Select file", command=files)
+     btn1.grid(column=1, row=2, padx=10, pady=10)
+     var3 = StringVar()
+     label3 = Message(root, textvariable = var3, width = 500)
+     label3.grid(column = 1, row=3, padx=5, pady=5)
+     lbl = ttk.Label(root, text="Step 2\nPlease enter correct answer\nThen press submit")
+     lbl.grid(column=2, row=1, padx=10, pady=10)
+     var1 = StringVar()
+     label4 = Message(root, textvariable = var1, width = 500)
+     label4.grid(column = 2, row=4, padx=10, pady=10)
+     txt = Entry(root,width=10)
+     txt.grid(column=2, row=2, padx=10, pady=10)
+     correct = None
+     btn = ttk.Button(root, text="Submit", command=clicked)
+     btn.grid(column=2, row=3, padx=10, pady=10)
+     var = StringVar()
+     label = Message(root, textvariable = var, width = 500)
+     label.grid(column = 1, row=4, padx=5, pady=5)
+     varWrong = StringVar()
+     labelWrong = Message(root, textvariable = varWrong, width = 500)
+     labelWrong.grid(column = 1, row=5, padx=5, pady=5)
+     style.theme_use('default')
+     style.configure("black.Horizontal.TProgressbar", background='black')
+     var4 = StringVar()
+     lbl2 = Message(root, textvariable = var4, width = 500)
+     lbl2.grid(column=1, row=6, padx=5, pady=5)
+     bar = ttk.Progressbar(root, length=300, style='black.Horizontal.TProgressbar', mode = 'determinate')
+     bar["value"] = 0
+     bar["maximum"] = 100
+     bar.grid(column=1, row=6, padx=10, pady=10)
+     root.mainloop()
